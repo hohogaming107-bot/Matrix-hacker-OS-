@@ -1,0 +1,401 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>MATRIX HACKER OS</title>
+
+<style>
+*{box-sizing:border-box}
+:root{
+ --green:#00ff66;
+ --dark:#000;
+ --panel:rgba(0,25,10,.78);
+}
+body{
+ margin:0;background:#000;color:var(--green);
+ font-family:Consolas,monospace;
+ overflow:hidden;
+}
+canvas{
+ position:fixed;inset:0;width:100%;height:100%;
+ z-index:0;
+}
+#overlay{
+ position:fixed;inset:0;z-index:1;
+ pointer-events:none;
+ background:radial-gradient(ellipse,transparent 15%,rgba(0,0,0,.5) 100%);
+}
+#app{
+ position:relative;z-index:2;
+ height:100dvh;width:100%;
+ padding:15px 15px 55px;
+ overflow-y:auto;
+ scrollbar-width:none;
+}
+#app::-webkit-scrollbar{display:none}
+header{
+ display:flex;justify-content:space-between;
+ align-items:center;border-bottom:1px solid #00ff6655;
+ padding:8px 0 13px;font-size:11px;
+ letter-spacing:2px;
+}
+.glow{text-shadow:0 0 6px #00ff66,0 0 15px #00ff66}
+.online{animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.3}}
+.clockbox{
+ text-align:center;padding:25px 0 20px;
+}
+#clock{
+ font-size:clamp(48px,14vw,76px);
+ font-weight:bold;letter-spacing:3px;
+ text-shadow:0 0 10px #00ff66,0 0 30px #00ff6680;
+}
+#date{font-size:12px;letter-spacing:3px;margin-top:8px}
+#day{font-size:10px;color:#56b77a;margin-top:8px}
+.tag{font-size:10px;color:#00b94b;letter-spacing:3px;margin-top:12px}
+.panel{
+ background:var(--panel);
+ border:1px solid #00ff6655;
+ border-radius:5px;
+ padding:13px;margin-bottom:13px;
+ box-shadow:0 0 14px #00ff6610,inset 0 0 15px #00ff6608;
+ backdrop-filter:blur(5px);
+}
+.title{
+ font-size:11px;letter-spacing:2px;
+ border-bottom:1px solid #00ff6630;
+ padding-bottom:9px;margin-bottom:12px;
+}
+.grid{
+ display:grid;grid-template-columns:1fr 1fr;gap:12px;
+}
+.metric{font-size:10px;color:#8bdba8}
+.value{font-size:17px;color:#00ff66;margin-top:5px}
+.track{
+ height:5px;background:#10301b;margin-top:7px;
+ overflow:hidden;border-radius:4px;
+}
+.fill{
+ height:100%;background:#00ff66;
+ box-shadow:0 0 10px #00ff66;
+ transition:width .5s;
+}
+.terminal{
+ font-size:10px;line-height:1.8;
+ height:120px;overflow:hidden;
+ color:#00ff66;
+}
+.term-line{white-space:normal;word-break:break-all}
+.cursor{
+ display:inline-block;width:7px;height:12px;
+ background:#00ff66;animation:blink .7s infinite;
+}
+.scanline{
+ height:2px;width:100%;background:#00ff66;
+ box-shadow:0 0 15px #00ff66;
+ animation:scan 3s linear infinite;
+}
+@keyframes scan{
+ 0%{transform:translateY(-10px);opacity:0}
+ 50%{opacity:1}
+ 100%{transform:translateY(120px);opacity:0}
+}
+.network{
+ display:flex;justify-content:space-between;
+ font-size:10px;margin:9px 0;
+}
+.nodes{
+ display:flex;justify-content:space-around;
+ padding:14px 0;
+}
+.node{
+ width:35px;height:35px;border:1px solid #00ff66;
+ border-radius:50%;display:grid;place-items:center;
+ box-shadow:0 0 10px #00ff6655;
+ font-size:11px;
+ animation:pulse 2s infinite;
+}
+@keyframes pulse{
+ 50%{box-shadow:0 0 20px #00ff66}
+}
+.security-row{
+ display:flex;justify-content:space-between;
+ font-size:10px;padding:7px 0;
+ border-bottom:1px solid #00ff6620;
+}
+.good{color:#00ff66}
+.footer{
+ text-align:center;font-size:9px;
+ letter-spacing:2px;color:#009d42;
+ padding:12px 0 20px;
+}
+#menu{
+ position:fixed;right:10px;bottom:12px;
+ z-index:10;display:flex;gap:5px;
+}
+button{
+ background:#001b0a;color:#00ff66;
+ border:1px solid #00ff66;
+ border-radius:3px;padding:9px 10px;
+ font-family:monospace;font-size:9px;
+}
+button:active{background:#00ff66;color:#000}
+.hidden{display:none!important}
+#boot{
+ position:fixed;inset:0;background:#000;
+ z-index:20;display:flex;align-items:center;
+ justify-content:center;text-align:left;padding:30px;
+ font-size:12px;line-height:2;
+}
+#boot.hide{display:none}
+#bootText{max-width:320px}
+</style>
+</head>
+
+<body>
+
+<canvas id="matrix"></canvas>
+<div id="overlay"></div>
+
+<div id="boot">
+ <div id="bootText" class="glow">
+  MATRIX OS INITIALIZING...<br>
+  LOADING CYBER MODULES...<br>
+  CONNECTING VIRTUAL SYSTEM...<br>
+  <span class="online">PLEASE WAIT...</span>
+ </div>
+</div>
+
+<main id="app">
+
+<header>
+ <span class="glow">◈ MATRIX OS v10.0</span>
+ <span class="online">● SYSTEM ONLINE</span>
+</header>
+
+<section class="clockbox">
+ <div id="clock">00:00:00</div>
+ <div id="date">LOADING DATE</div>
+ <div id="day">SYSTEM CALENDAR</div>
+ <div class="tag">[ DIGITAL COMMAND CENTER ]</div>
+</section>
+
+<section class="panel">
+ <div class="title">◈ SYSTEM PERFORMANCE</div>
+ <div class="grid">
+  <div class="metric">
+   CPU LOAD
+   <div class="value" id="cpu">42%</div>
+   <div class="track"><div class="fill" id="cpuBar" style="width:42%"></div></div>
+  </div>
+  <div class="metric">
+   MEMORY
+   <div class="value" id="ram">68%</div>
+   <div class="track"><div class="fill" id="ramBar" style="width:68%"></div></div>
+  </div>
+  <div class="metric">
+   DATA FLOW
+   <div class="value" id="flow">84 MB/s</div>
+  </div>
+  <div class="metric">
+   FIREWALL
+   <div class="value">ACTIVE</div>
+  </div>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="title">◈ LIVE TERMINAL // VIRTUAL</div>
+ <div class="terminal" id="terminal">
+  <div>> MATRIX OS boot sequence started</div>
+  <div>> Loading virtual modules...</div>
+  <div>> Access authorized</div>
+ </div>
+ <div class="scanline"></div>
+ <div style="font-size:10px;margin-top:10px">
+  ROOT@MATRIX:~# <span class="cursor"></span>
+ </div>
+</section>
+
+<section class="panel">
+ <div class="title">◈ VIRTUAL NETWORK SCANNER</div>
+ <div class="network">
+  <span>SCANNING NETWORK</span>
+  <span id="scanPercent" class="glow">00%</span>
+ </div>
+ <div class="track" style="height:7px">
+  <div class="fill" id="scanBar" style="width:0%"></div>
+ </div>
+ <div class="nodes">
+  <div class="node">01</div>
+  <div class="node">02</div>
+  <div class="node">03</div>
+  <div class="node">04</div>
+ </div>
+ <div style="font-size:10px" id="scanStatus">Initializing virtual scan...</div>
+</section>
+
+<section class="panel">
+ <div class="title">◈ CYBER SECURITY</div>
+ <div class="security-row"><span>ENCRYPTION</span><span class="good">AES-256 ACTIVE</span></div>
+ <div class="security-row"><span>FIREWALL</span><span class="good">PROTECTED</span></div>
+ <div class="security-row"><span>ACCESS CONTROL</span><span class="good">AUTHORIZED</span></div>
+ <div class="security-row"><span>VIRTUAL PROTOCOL</span><span class="good">RUNNING</span></div>
+ <div class="security-row"><span>THREAT DETECTION</span><span class="good">DEMO MODE</span></div>
+</section>
+
+<section class="panel">
+ <div class="title">◈ MATRIX DATA STREAM</div>
+ <div id="dataStream" style="font-size:10px;line-height:2;word-break:break-all">
+  01010110 10101001 11001010<br>
+  00110101 10110010 01101010<br>
+  10101010 01010101 11001100
+ </div>
+</section>
+
+<div class="footer">
+ MATRIX SYSTEM // ALL MODULES OPERATIONAL<br>
+ FICTIONAL VISUAL SIMULATION
+</div>
+</main>
+
+<div id="menu">
+ <button onclick="toggleRain()">RAIN</button>
+ <button onclick="togglePanels()">PANELS</button>
+ <button onclick="fullScreen()">FULL SCREEN</button>
+</div>
+
+<script>
+// LIVE DIGITAL CLOCK
+function updateClock(){
+ const d=new Date();
+ document.getElementById("clock").textContent=
+ d.toLocaleTimeString("en-GB");
+ document.getElementById("date").textContent=
+ d.toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+ document.getElementById("day").textContent=
+ d.toLocaleDateString("en-US",{weekday:"long"}).toUpperCase();
+}
+updateClock();
+setInterval(updateClock,1000);
+
+// MATRIX DIGITAL RAIN
+const canvas=document.getElementById("matrix");
+const ctx=canvas.getContext("2d");
+const font=14;
+let drops=[],rain=true;
+function resize(){
+ canvas.width=innerWidth;
+ canvas.height=innerHeight;
+ drops=Array(Math.ceil(canvas.width/font)).fill(1);
+}
+resize();
+addEventListener("resize",resize);
+const characters="01アイウエオカキクケコサシスセソ";
+
+function matrixDraw(){
+ ctx.fillStyle="rgba(0,0,0,0.09)";
+ ctx.fillRect(0,0,canvas.width,canvas.height);
+ if(rain){
+  ctx.font=font+"px monospace";
+  drops.forEach((y,i)=>{
+   ctx.fillStyle=Math.random()>.97?"#ffffff":"#00ff66";
+   const ch=characters[Math.floor(Math.random()*characters.length)];
+   ctx.fillText(ch,i*font,y*font);
+   if(y*font>canvas.height&&Math.random()>.975)drops[i]=0;
+   drops[i]++;
+  });
+ }
+ requestAnimationFrame(matrixDraw);
+}
+matrixDraw();
+
+// TERMINAL AUTO COMMANDS
+const terminal=document.getElementById("terminal");
+const commands=[
+"Initializing virtual security protocols...",
+"Loading Matrix kernel modules...",
+"Checking virtual firewall...",
+"Generating encrypted demo keys...",
+"Analyzing simulated data packets...",
+"Virtual port scan: COMPLETE",
+"Security status: PROTECTED",
+"Loading cyber interface...",
+"Digital stream synchronized...",
+"Virtual access: AUTHORIZED",
+"System integrity: 100%",
+"All demo modules operational..."
+];
+let ci=0;
+function addCommand(){
+ const line=document.createElement("div");
+ line.className="term-line";
+ line.textContent="> "+commands[ci++%commands.length];
+ terminal.appendChild(line);
+ while(terminal.children.length>5)terminal.firstChild.remove();
+}
+setInterval(addCommand,1400);
+
+// SIMULATED SYSTEM METRICS
+setInterval(()=>{
+ const cpu=Math.floor(20+Math.random()*75);
+ const ram=Math.floor(30+Math.random()*60);
+ const flow=Math.floor(10+Math.random()*150);
+ document.getElementById("cpu").textContent=cpu+"%";
+ document.getElementById("ram").textContent=ram+"%";
+ document.getElementById("flow").textContent=flow+" MB/s";
+ document.getElementById("cpuBar").style.width=cpu+"%";
+ document.getElementById("ramBar").style.width=ram+"%";
+},2000);
+
+// VIRTUAL NETWORK SCANNER
+let scan=0;
+setInterval(()=>{
+ scan=(scan+Math.floor(Math.random()*9)+1)%101;
+ document.getElementById("scanPercent").textContent=
+ String(scan).padStart(2,"0")+"%";
+ document.getElementById("scanBar").style.width=scan+"%";
+ document.getElementById("scanStatus").textContent=
+ scan===100?"Virtual scan completed. Restarting...":
+ "Analyzing virtual network nodes...";
+},450);
+
+// RANDOM BINARY STREAM
+setInterval(()=>{
+ let output="";
+ for(let i=0;i<3;i++){
+  for(let j=0;j<8;j++)output+=Math.random()>.5?"1":"0";
+  output+=" ";
+ }
+ document.getElementById("dataStream").textContent=
+ output+ "\n"+output+"\n"+output;
+},700);
+
+// BOOT ANIMATION
+setTimeout(()=>{
+ document.getElementById("boot").classList.add("hide");
+},1800);
+
+// CONTROLS
+function toggleRain(){
+ rain=!rain;
+ if(!rain)ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+function togglePanels(){
+ document.querySelectorAll(".panel").forEach(p=>{
+  p.classList.toggle("hidden");
+ });
+}
+function fullScreen(){
+ if(!document.fullscreenElement){
+  document.documentElement.requestFullscreen?.();
+ }else{
+  document.exitFullscreen?.();
+ }
+}
+</script>
+</body>
+</html>
