@@ -1,0 +1,433 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#080d13">
+<title>AI VISION X</title>
+
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#080d13;color:#eaf3ff;
+ font-family:Arial,sans-serif;
+}
+header{
+ padding:20px;background:#101923;
+ border-bottom:1px solid #243849;
+}
+.logo{
+ font-size:25px;font-weight:900;letter-spacing:3px;
+}
+.logo span{color:#00e5ff}
+.sub{font-size:10px;color:#8398aa;margin-top:7px;letter-spacing:2px}
+.status{font-size:12px;color:#ffbd55;margin-top:13px}
+main{max-width:800px;margin:auto;padding:14px}
+.card{
+ background:#111c27;border:1px solid #263c4e;
+ border-radius:12px;padding:15px;margin-bottom:14px;
+}
+h2{font-size:17px;margin:0 0 12px}
+p{font-size:12px;color:#9fb0c1;line-height:1.6}
+button{
+ border:0;border-radius:7px;padding:13px;
+ background:#00a9c7;color:#001219;
+ font-weight:bold;cursor:pointer;
+}
+button.secondary{background:#253849;color:white}
+button.danger{background:#a42e3b;color:white}
+button:disabled{opacity:.4}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stage{
+ position:relative;width:100%;aspect-ratio:4/3;
+ background:#05090e;border-radius:9px;
+ overflow:hidden;display:flex;
+ align-items:center;justify-content:center;
+}
+.stage video,.stage img{
+ width:100%;height:100%;object-fit:contain;
+}
+#overlay{
+ position:absolute;inset:0;width:100%;height:100%;
+ pointer-events:none;
+}
+#empty{
+ position:absolute;color:#708697;font-size:13px;
+ text-align:center;padding:20px;
+}
+input[type=file]{width:100%;margin:12px 0;color:#aebdca}
+input[type=range]{width:100%;accent-color:#00d5ed}
+.statgrid{
+ display:grid;grid-template-columns:repeat(3,1fr);gap:8px;
+}
+.stat{
+ background:#0b141d;border:1px solid #23394a;
+ padding:12px 5px;text-align:center;border-radius:8px;
+}
+.stat strong{display:block;font-size:20px;color:#00e5ff}
+.stat small{font-size:10px;color:#91a5b8}
+#results{display:flex;flex-wrap:wrap;gap:7px}
+.tag{
+ background:#10303a;border:1px solid #087c91;
+ border-radius:20px;padding:7px 10px;font-size:11px;
+}
+#history{font-size:12px;color:#b4c6d6;line-height:2}
+#log{font-size:12px;color:#90a6b8;overflow-wrap:anywhere}
+footer{text-align:center;color:#607587;font-size:10px;padding:20px}
+</style>
+</head>
+
+<body>
+
+<header>
+ <div class="logo">AI VISION <span>X</span></div>
+ <div class="sub">INTELLIGENT COMPUTER VISION LAB</div>
+ <div class="status" id="status">● MODEL NOT LOADED</div>
+</header>
+
+<main>
+
+<div class="card">
+ <h2>VISION CONTROL CENTER</h2>
+ <p>Real-time object recognition powered by TensorFlow.js and COCO-SSD.</p>
+ <div class="statgrid">
+  <div class="stat"><strong id="objectCount">0</strong><small>OBJECTS</small></div>
+  <div class="stat"><strong id="fps">0</strong><small>ANALYSIS/S</small></div>
+  <div class="stat"><strong id="total">0</strong><small>DETECTIONS</small></div>
+ </div>
+</div>
+
+<div class="card">
+ <h2>LIVE VISION CAMERA</h2>
+
+ <div class="stage" id="stage">
+  <video id="video" autoplay playsinline muted hidden></video>
+  <img id="photo" hidden alt="Selected image">
+  <canvas id="overlay"></canvas>
+  <div id="empty">AI CAMERA STANDBY<br><br>Start camera or upload a photo</div>
+ </div>
+
+ <div class="actions" style="margin-top:12px">
+  <button id="start" onclick="startCamera()">START CAMERA</button>
+  <button class="danger" onclick="stopCamera()">STOP CAMERA</button>
+  <button class="secondary" onclick="switchCamera()">SWITCH CAMERA</button>
+  <button class="secondary" onclick="clearVision()">CLEAR SCAN</button>
+ </div>
+</div>
+
+<div class="card">
+ <h2>IMAGE INTELLIGENCE SCANNER</h2>
+ <p>Choose an image from your phone and analyze it with the real AI model.</p>
+ <input type="file" id="file" accept="image/*">
+ <button style="width:100%" onclick="scanImage()">ANALYZE IMAGE</button>
+</div>
+
+<div class="card">
+ <h2>AI DETECTION SETTINGS</h2>
+ <p>Minimum confidence: <strong id="confidenceText">50%</strong></p>
+ <input id="confidence" type="range" min="10" max="95" value="50">
+ <p>Higher confidence means fewer but more certain detections.</p>
+</div>
+
+<div class="card">
+ <h2>DETECTED OBJECTS</h2>
+ <div id="results"><span class="tag">Waiting for AI...</span></div>
+</div>
+
+<div class="card">
+ <h2>DETECTION HISTORY</h2>
+ <div id="history">No detections yet.</div>
+</div>
+
+<div class="card">
+ <h2>SYSTEM LOG</h2>
+ <div id="log">Vision system initialized.</div>
+</div>
+
+</main>
+
+<footer>AI VISION X · COMPUTER VISION ENGINE · V1.0</footer>
+
+<!-- TensorFlow.js and COCO-SSD model -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+<script>
+const $=id=>document.getElementById(id);
+
+let model=null;
+let stream=null;
+let running=false;
+let facing="environment";
+let busy=false;
+let totalDetections=0;
+let history=[];
+let lastSeen={};
+let lastAnalysis=0;
+
+const video=$("video");
+const photo=$("photo");
+const canvas=$("overlay");
+const ctx=canvas.getContext("2d");
+
+function log(message){
+ $("log").textContent=
+ new Date().toLocaleTimeString()+" | "+message+"\n"+
+ $("log").textContent;
+}
+
+function status(message,color){
+ $("status").textContent="● "+message;
+ $("status").style.color=color||"#00e5ff";
+}
+
+function clearCanvas(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+async function loadAI(){
+ if(model)return model;
+
+ if(!window.tf || !window.cocoSsd){
+  throw Error("AI libraries could not load. Check internet and reload.");
+ }
+
+ status("LOADING AI MODEL","#ffbd55");
+ log("Loading COCO-SSD object detection model...");
+
+ await tf.ready();
+ model=await cocoSsd.load({base:"lite_mobilenet_v2"});
+
+ status("AI MODEL READY","#55e9a0");
+ log("AI model successfully loaded.");
+ return model;
+}
+
+async function startCamera(){
+ try{
+  await loadAI();
+
+  if(!navigator.mediaDevices ||
+     !navigator.mediaDevices.getUserMedia){
+   throw Error("Camera unavailable. Use HTTPS or a supported secure browser.");
+  }
+
+  stopCamera();
+
+  stream=await navigator.mediaDevices.getUserMedia({
+   audio:false,
+   video:{
+    facingMode:{ideal:facing},
+    width:{ideal:640},
+    height:{ideal:480}
+   }
+  });
+
+  video.srcObject=stream;
+  video.hidden=false;
+  photo.hidden=true;
+  $("empty").hidden=true;
+
+  await video.play();
+  running=true;
+
+  status("LIVE CAMERA ACTIVE","#55e9a0");
+  log("Camera started successfully.");
+
+  detectLoop();
+
+ }catch(e){
+  status("CAMERA ERROR","#ff6464");
+  log(e.name+": "+e.message);
+  alert("Camera error: "+e.message);
+ }
+}
+
+function stopCamera(){
+ running=false;
+ if(stream){
+  stream.getTracks().forEach(track=>track.stop());
+  stream=null;
+ }
+ video.srcObject=null;
+ video.hidden=true;
+
+ if(!photo.src || photo.hidden){
+  $("empty").hidden=false;
+ }
+ status(model?"AI MODEL READY":"MODEL NOT LOADED");
+ log("Camera stopped.");
+}
+
+async function switchCamera(){
+ facing=facing==="environment"?"user":"environment";
+ if(running)await startCamera();
+}
+
+$("confidence").addEventListener("input",()=>{
+ $("confidenceText").textContent=$("confidence").value+"%";
+});
+
+function drawPredictions(predictions,sourceWidth,sourceHeight){
+ const w=canvas.clientWidth;
+ const h=canvas.clientHeight;
+ if(!w||!h)return;
+
+ if(canvas.width!==Math.round(w*devicePixelRatio) ||
+    canvas.height!==Math.round(h*devicePixelRatio)){
+  canvas.width=Math.round(w*devicePixelRatio);
+  canvas.height=Math.round(h*devicePixelRatio);
+ }
+
+ ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+ ctx.clearRect(0,0,w,h);
+
+ const scale=Math.min(w/sourceWidth,h/sourceHeight);
+ const offsetX=(w-sourceWidth*scale)/2;
+ const offsetY=(h-sourceHeight*scale)/2;
+ const minScore=Number($("confidence").value)/100;
+
+ const valid=predictions.filter(p=>p.score>=minScore);
+
+ for(const p of valid){
+  const [x,y,bw,bh]=p.bbox;
+  const X=offsetX+x*scale;
+  const Y=offsetY+y*scale;
+  const W=bw*scale;
+  const H=bh*scale;
+  const label=p.class+" "+Math.round(p.score*100)+"%";
+
+  ctx.lineWidth=2;
+  ctx.strokeStyle="#00e5ff";
+  ctx.strokeRect(X,Y,W,H);
+
+  ctx.font="bold 12px Arial";
+  const tw=ctx.measureText(label).width;
+  ctx.fillStyle="#00b8ce";
+  ctx.fillRect(X,Math.max(0,Y-22),tw+12,22);
+  ctx.fillStyle="#001219";
+  ctx.fillText(label,X+6,Math.max(15,Y-7));
+ }
+
+ updateResults(valid);
+}
+
+function updateResults(predictions){
+ $("objectCount").textContent=predictions.length;
+ $("results").innerHTML="";
+
+ if(!predictions.length){
+  $("results").textContent="No objects detected above threshold.";
+  return;
+ }
+
+ predictions.forEach(p=>{
+  const tag=document.createElement("span");
+  tag.className="tag";
+  tag.textContent=p.class+" · "+Math.round(p.score*100)+"%";
+  $("results").appendChild(tag);
+ });
+
+ totalDetections+=predictions.length;
+ $("total").textContent=totalDetections;
+
+ const now=Date.now();
+
+ predictions.forEach(p=>{
+  const key=p.class;
+  if(!lastSeen[key] || now-lastSeen[key]>3000){
+   history.unshift({
+    name:key,
+    score:Math.round(p.score*100),
+    time:new Date().toLocaleTimeString()
+   });
+   lastSeen[key]=now;
+  }
+ });
+
+ history=history.slice(0,20);
+ $("history").textContent=history.length?
+ history.map(x=>x.time+" — "+x.name+" ("+x.score+"%)").join("\n"):
+ "No detections yet.";
+}
+
+async function detectLoop(){
+ if(!running || busy)return;
+
+ busy=true;
+ const start=performance.now();
+
+ try{
+  if(video.readyState>=2 && video.videoWidth){
+   const predictions=await model.detect(video);
+   drawPredictions(predictions,video.videoWidth,video.videoHeight);
+
+   const elapsed=(performance.now()-start)/1000;
+   $("fps").textContent=elapsed>0?(1/elapsed).toFixed(1):"0";
+  }
+ }catch(e){
+  log("Detection error: "+e.message);
+ }finally{
+  busy=false;
+  if(running)setTimeout(detectLoop,250);
+ }
+}
+
+async function scanImage(){
+ const file=$("file").files[0];
+ if(!file){
+  alert("Choose an image first.");
+  return;
+ }
+
+ try{
+  await loadAI();
+  stopCamera();
+
+  const url=URL.createObjectURL(file);
+  photo.onload=async()=>{
+   try{
+    photo.hidden=false;
+    video.hidden=true;
+    $("empty").hidden=true;
+
+    const predictions=await model.detect(photo);
+    drawPredictions(predictions,photo.naturalWidth,photo.naturalHeight);
+
+    $("fps").textContent="—";
+    status("IMAGE ANALYSIS COMPLETE","#55e9a0");
+    log("Image analyzed: "+file.name);
+   }catch(e){
+    log("Image scan failed: "+e.message);
+   }finally{
+    URL.revokeObjectURL(url);
+   }
+  };
+  photo.src=url;
+ }catch(e){
+  alert(e.message);
+ }
+}
+
+function clearVision(){
+ clearCanvas();
+ $("objectCount").textContent="0";
+ $("fps").textContent="0";
+ $("total").textContent="0";
+ totalDetections=0;
+ history=[];
+ lastSeen={};
+ $("results").textContent="Waiting for AI...";
+ $("history").textContent="No detections yet.";
+ log("Detection records cleared.");
+}
+
+window.addEventListener("beforeunload",()=>{
+ if(stream)stream.getTracks().forEach(t=>t.stop());
+});
+</script>
+
+</body>
+  </html>
+    
